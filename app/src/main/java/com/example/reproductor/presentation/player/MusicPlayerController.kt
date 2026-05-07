@@ -70,6 +70,7 @@ class MusicPlayerController @Inject constructor(
     private val _sleepTimerRemainingMs = MutableStateFlow<Long?>(null)
     val sleepTimerRemainingMs: StateFlow<Long?> = _sleepTimerRemainingMs.asStateFlow()
     private var sleepTimerJob: Job? = null
+    private val progressUpdateIntervalMs = 1000L
 
     private val _eqPreset = MutableStateFlow(EqPreset.FLAT)
     val eqPreset: StateFlow<EqPreset> = _eqPreset.asStateFlow()
@@ -263,7 +264,7 @@ class MusicPlayerController @Inject constructor(
         progressUpdateJob = coroutineScope.launch {
             while (isActive) {
                 updateProgress()
-                delay(1000)
+                delay(progressUpdateIntervalMs)
             }
         }
     }
@@ -315,13 +316,7 @@ class MusicPlayerController @Inject constructor(
         mediaController?.let { controller ->
             val currentPosition = controller.currentPosition.coerceAtLeast(0)
             val duration = controller.duration.coerceAtLeast(0)
-            val current = _playbackProgress.value
-            if (currentPosition != current.currentPosition || duration != current.duration) {
-                _playbackProgress.value = PlaybackProgress(
-                    currentPosition = currentPosition,
-                    duration = duration
-                )
-            }
+            publishPlaybackProgress(currentPosition, duration)
 
             // Detección de loop silencioso: si la posición retrocedió más de 3 segundos
             // y ya contamos el play, significa que la canción se repitió sin que
@@ -375,7 +370,7 @@ class MusicPlayerController @Inject constructor(
                 currentIndex = controller.currentMediaItemIndex
             )
 
-            _playbackProgress.value = PlaybackProgress(
+            publishPlaybackProgress(
                 currentPosition = controller.currentPosition.coerceAtLeast(0),
                 duration = controller.duration.coerceAtLeast(0)
             )
@@ -484,7 +479,25 @@ class MusicPlayerController @Inject constructor(
 
     fun seekTo(position: Long) {
         mediaController?.seekTo(position)
-        _playbackProgress.value = _playbackProgress.value.copy(currentPosition = position)
+        publishPlaybackProgress(
+            currentPosition = position,
+            duration = _playbackProgress.value.duration
+        )
+    }
+
+    private fun publishPlaybackProgress(currentPosition: Long, duration: Long) {
+        val sanitizedPosition = currentPosition.coerceAtLeast(0L)
+        val sanitizedDuration = duration.coerceAtLeast(0L)
+        val current = _playbackProgress.value
+
+        if (sanitizedPosition == current.currentPosition && sanitizedDuration == current.duration) {
+            return
+        }
+
+        _playbackProgress.value = PlaybackProgress(
+            currentPosition = sanitizedPosition,
+            duration = sanitizedDuration
+        )
     }
 
     fun skipToNext() {

@@ -40,6 +40,11 @@ fun SongItem(
     isSelected: Boolean = false,
     showAlbumArt: Boolean = true
 ) {
+    val albumArtRequest = rememberArtworkRequest(
+        data = song.albumArt,
+        size = 58.dp
+    )
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -52,7 +57,7 @@ fun SongItem(
         Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             if (showAlbumArt && !song.albumArt.isNullOrBlank()) {
                 AsyncImage(
-                    model = song.albumArt,
+                    model = albumArtRequest,
                     contentDescription = null,
                     modifier = Modifier
                         .size(58.dp)

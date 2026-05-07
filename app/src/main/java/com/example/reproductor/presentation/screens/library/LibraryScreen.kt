@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.reproductor.domain.model.Song
 import com.example.reproductor.presentation.components.SongOptionsSheet
+import com.example.reproductor.presentation.components.rememberArtworkRequest
 import com.example.reproductor.presentation.library.LibraryFilter
 import com.example.reproductor.presentation.library.LibraryViewModel
 
@@ -66,6 +67,7 @@ fun LibraryScreen(
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val visibleSongs = remember(filteredSongs) { filteredSongs.take(50) }
 
     var selectedSong by remember { mutableStateOf<Song?>(null) }
 
@@ -131,13 +133,17 @@ fun LibraryScreen(
             }
         }
 
-        itemsIndexed(filteredSongs.take(50), key = { _, s -> s.id }, contentType = { _, _ -> "SongItem" }) { index, song ->
+        itemsIndexed(visibleSongs, key = { _, s -> s.id }, contentType = { _, _ -> "SongItem" }) { index, song ->
+            val albumArtRequest = rememberArtworkRequest(
+                data = song.albumArt,
+                size = 42.dp
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .combinedClickable(
                         onClick = {
-                            viewModel.playSongs(filteredSongs, index)
+                            viewModel.playSongs(visibleSongs, index)
                             onNavigateToPlayer()
                         },
                         onLongClick = { selectedSong = song }
@@ -160,7 +166,7 @@ fun LibraryScreen(
                 ) {
                     if (!song.albumArt.isNullOrBlank()) {
                         AsyncImage(
-                            model = song.albumArt,
+                            model = albumArtRequest,
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop

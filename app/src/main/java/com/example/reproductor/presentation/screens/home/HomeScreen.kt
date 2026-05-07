@@ -71,6 +71,7 @@ import com.example.reproductor.presentation.components.QueueBottomSheet
 import com.example.reproductor.presentation.components.SongOptionsSheet
 import com.example.reproductor.presentation.components.toMostPlayedTrack
 import com.example.reproductor.presentation.components.formatDuration
+import com.example.reproductor.presentation.components.rememberArtworkRequest
 import com.example.reproductor.presentation.library.LibraryViewModel
 import com.example.reproductor.presentation.player.PlayerViewModel
 import androidx.media3.common.Player
@@ -116,6 +117,10 @@ fun HomeScreen(
     val currentSong = playerState.currentSong
     val featured = currentSong ?: songs.firstOrNull()
     val isPlaying = playerState.isPlaying
+    val featuredArtRequest = rememberArtworkRequest(
+        data = featured?.albumArt,
+        size = 90.dp
+    )
 
     var selectedSong by remember { mutableStateOf<Song?>(null) }
 
@@ -186,7 +191,7 @@ fun HomeScreen(
                     ) {
                         if (featured?.albumArt != null) {
                             AsyncImage(
-                                model = featured.albumArt,
+                                model = featuredArtRequest,
                                 contentDescription = null,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
@@ -478,6 +483,11 @@ private fun HorizontalSongCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
+    val albumArtRequest = rememberArtworkRequest(
+        data = song.albumArt,
+        size = 130.dp
+    )
+
     Column(
         modifier = Modifier
             .width(130.dp)
@@ -499,7 +509,7 @@ private fun HorizontalSongCard(
         ) {
             if (!song.albumArt.isNullOrBlank()) {
                 AsyncImage(
-                    model = song.albumArt,
+                    model = albumArtRequest,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop

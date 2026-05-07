@@ -85,6 +85,10 @@ fun MiniPlayer(
     val playerState by viewModel.playerState.collectAsStateWithLifecycle()
     val currentSong = playerState.currentSong ?: return
     val context = LocalContext.current
+    val albumArtRequest = rememberArtworkRequest(
+        data = currentSong.albumArt,
+        size = 50.dp
+    )
 
     // ── Palette background color ──────────────────────────────────────────────
     var paletteColor by remember { mutableStateOf(SurfaceDark) }
@@ -155,7 +159,7 @@ fun MiniPlayer(
             ) {
                 if (currentSong.albumArt != null) {
                     AsyncImage(
-                        model = currentSong.albumArt,
+                        model = albumArtRequest,
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
