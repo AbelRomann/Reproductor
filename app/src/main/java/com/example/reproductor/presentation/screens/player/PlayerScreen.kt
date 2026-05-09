@@ -136,11 +136,11 @@ fun PlayerScreen(
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val playerState by viewModel.playerState.collectAsStateWithLifecycle()
-    val playbackProgress by viewModel.playbackProgress.collectAsStateWithLifecycle()
     val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
     val shuffleModeEnabled by viewModel.shuffleModeEnabled.collectAsStateWithLifecycle()
     val sleepTimerRemainingMs by viewModel.sleepTimerRemainingMs.collectAsStateWithLifecycle()
     val eqPreset by viewModel.eqPreset.collectAsStateWithLifecycle()
+    val loopRange by viewModel.loopRange.collectAsStateWithLifecycle()
 
     // Fix #9: derivedStateOf to avoid full-tree recomposition
     val queue by remember { derivedStateOf { playerState.queue } }
@@ -161,18 +161,6 @@ fun PlayerScreen(
     var showPlayerOptionsSheet by remember { mutableStateOf(false) }
 
     // ── Seek state ──────────────────────────────────────────────
-    var isUserSeeking by remember { mutableStateOf(false) }
-    var sliderPosition by remember { mutableFloatStateOf(0f) }
-
-    LaunchedEffect(playbackProgress.currentPosition, playbackProgress.duration, isUserSeeking) {
-        if (!isUserSeeking) {
-            sliderPosition = if (playbackProgress.duration > 0) {
-                (playbackProgress.currentPosition.toFloat() / playbackProgress.duration.toFloat())
-                    .coerceIn(0f, 1f)
-            } else 0f
-        }
-    }
-
     // ── Dynamic Colors State ─────────────────────────────────────
     var bgTop by remember { mutableStateOf(DefaultBgTop) }
     var bgBottom by remember { mutableStateOf(DefaultBgBottom) }
@@ -378,16 +366,7 @@ fun PlayerScreen(
         Spacer(Modifier.height(16.dp))
 
         // ── Progress bar ────────────────────────────────────────
-        ProgressSection(
-            sliderPosition = sliderPosition,
-            currentPosition = playbackProgress.currentPosition,
-            duration = playbackProgress.duration,
-            onValueChange = { isUserSeeking = true; sliderPosition = it },
-            onValueChangeFinished = {
-                viewModel.seekTo((sliderPosition * playbackProgress.duration).toLong())
-                isUserSeeking = false
-            }
-        )
+        PlayerProgressSection(viewModel = viewModel)
 
         Spacer(Modifier.height(8.dp))
 
@@ -482,13 +461,21 @@ fun PlayerScreen(
         PlayerOptionsSheet(
             currentEqPreset = eqPreset,
             sleepTimerRemainingMs = sleepTimerRemainingMs,
+            loopRange = loopRange,
+            currentPosition = viewModel.getCurrentPlaybackPosition(),
             onDismiss = { showPlayerOptionsSheet = false },
             onSetEqPreset = { preset -> viewModel.setEqPreset(preset) },
             onStartSleepTimer = { minutes ->
                 viewModel.startSleepTimer(minutes)
                 showPlayerOptionsSheet = false
             },
-            onCancelSleepTimer = { viewModel.cancelSleepTimer() }
+            onCancelSleepTimer = { viewModel.cancelSleepTimer() },
+            onMarkLoopStart = { viewModel.markLoopStartAtCurrentPosition() },
+            onMarkLoopEnd = { viewModel.markLoopEndAtCurrentPosition() },
+            onEnableLoop = { viewModel.enableLoopRange() },
+            onDisableLoop = { viewModel.disableLoopRange() },
+            onClearLoop = { viewModel.clearLoopRange() },
+            onLoopLast3Seconds = { viewModel.setLoopToLastSeconds(3) }
         )
     }
 }
@@ -611,6 +598,38 @@ private fun AudioToolsSheet(
         }
         Spacer(Modifier.height(24.dp))
     }
+}
+
+@Composable
+private fun PlayerProgressSection(
+    viewModel: PlayerViewModel
+) {
+    val playbackProgress by viewModel.playbackProgress.collectAsStateWithLifecycle()
+    var isUserSeeking by remember { mutableStateOf(false) }
+    var sliderPosition by remember(playbackProgress.duration) { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(playbackProgress.currentPosition, playbackProgress.duration, isUserSeeking) {
+        if (!isUserSeeking) {
+            sliderPosition = if (playbackProgress.duration > 0) {
+                (playbackProgress.currentPosition.toFloat() / playbackProgress.duration.toFloat())
+                    .coerceIn(0f, 1f)
+            } else 0f
+        }
+    }
+
+    ProgressSection(
+        sliderPosition = sliderPosition,
+        currentPosition = playbackProgress.currentPosition,
+        duration = playbackProgress.duration,
+        onValueChange = { value ->
+            isUserSeeking = true
+            sliderPosition = value
+        },
+        onValueChangeFinished = {
+            viewModel.seekTo((sliderPosition * playbackProgress.duration).toLong())
+            isUserSeeking = false
+        }
+    )
 }
 
 @Composable

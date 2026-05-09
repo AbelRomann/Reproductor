@@ -9,6 +9,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.example.reproductor.domain.model.LoopRange
 import com.example.reproductor.domain.model.PlaybackProgress
 import com.example.reproductor.domain.model.PlayerState
 import com.example.reproductor.domain.model.Song
@@ -70,10 +71,15 @@ class MusicPlayerController @Inject constructor(
     private val _sleepTimerRemainingMs = MutableStateFlow<Long?>(null)
     val sleepTimerRemainingMs: StateFlow<Long?> = _sleepTimerRemainingMs.asStateFlow()
     private var sleepTimerJob: Job? = null
-    private val progressUpdateIntervalMs = 1000L
+    // Good compromise: smoother UI feedback without turning playback progress
+    // into a frame-by-frame state publisher.
+    private val progressUpdateIntervalMs = 250L
 
     private val _eqPreset = MutableStateFlow(EqPreset.FLAT)
     val eqPreset: StateFlow<EqPreset> = _eqPreset.asStateFlow()
+
+    private val _loopRange = MutableStateFlow(LoopRange())
+    val loopRange: StateFlow<LoopRange> = _loopRange.asStateFlow()
 
     init {
         initializeController()
@@ -127,6 +133,7 @@ class MusicPlayerController @Inject constructor(
                 playCountCounted = false
                 historyCounted = false
                 lastKnownPosition = 0L
+                clearLoopRange()
                 updatePlayerState()
                 if (mediaController?.isPlaying == true) {
                     recordListenStart()
@@ -153,6 +160,7 @@ class MusicPlayerController @Inject constructor(
                         playCountCounted = false
                         historyCounted = false
                         lastKnownPosition = 0L
+                        clearLoopRange()
                         if (mediaController?.isPlaying == true) {
                             recordListenStart()
                         }
@@ -161,6 +169,9 @@ class MusicPlayerController @Inject constructor(
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED && restartLoopRangeIfNeeded()) {
+                    return
+                }
                 updatePlayerState()
                 setupEqualizer(0)
             }
@@ -274,9 +285,23 @@ class MusicPlayerController @Inject constructor(
         progressUpdateJob = null
     }
 
+    private fun restartLoopRangeIfNeeded(): Boolean {
+        val controller = mediaController ?: return false
+        val loopRange = _loopRange.value
+        if (!loopRange.isEnabled || !loopRange.isComplete) return false
+
+        val loopStart = loopRange.startMs ?: return false
+        controller.seekTo(loopStart)
+        controller.play()
+        publishPlaybackProgress(loopStart, controller.duration.coerceAtLeast(0L))
+        lastKnownPosition = loopStart
+        return true
+    }
+
     // ── Listen-time tracking ──────────────────────────────────────────────────
 
     private fun recordListenStart() {
+        if (_loopRange.value.isEnabled) return
         if (listenStartMs == null) {
             listenStartMs = System.currentTimeMillis()
         }
@@ -316,13 +341,27 @@ class MusicPlayerController @Inject constructor(
         mediaController?.let { controller ->
             val currentPosition = controller.currentPosition.coerceAtLeast(0)
             val duration = controller.duration.coerceAtLeast(0)
+            val loopRange = _loopRange.value
+
+            if (loopRange.isEnabled && loopRange.isComplete) {
+                val loopStart = loopRange.startMs ?: 0L
+                val loopEnd = loopRange.endMs ?: duration
+                val loopTriggerThreshold = (loopEnd - 100L).coerceAtLeast(loopStart)
+                if (currentPosition >= loopTriggerThreshold) {
+                    controller.seekTo(loopStart)
+                    publishPlaybackProgress(loopStart, duration)
+                    lastKnownPosition = loopStart
+                    return
+                }
+            }
+
             publishPlaybackProgress(currentPosition, duration)
 
             // Detección de loop silencioso: si la posición retrocedió más de 3 segundos
             // y ya contamos el play, significa que la canción se repitió sin que
             // onPositionDiscontinuity se disparara (comportamiento variable en Media3).
             val positionJumpedBack = lastKnownPosition > 3_000L && currentPosition < lastKnownPosition - 3_000L
-            if (positionJumpedBack && (playCountCounted || historyCounted)) {
+            if (!loopRange.isEnabled && positionJumpedBack && (playCountCounted || historyCounted)) {
                 val now = System.currentTimeMillis()
                 if (now - lastAutoTransitionHandledMs > 500L) {
                     lastAutoTransitionHandledMs = now
@@ -335,6 +374,7 @@ class MusicPlayerController @Inject constructor(
             }
             lastKnownPosition = currentPosition
         }
+        if (_loopRange.value.isEnabled) return
         if (playCountCounted && historyCounted) return
         val currentListenStart = listenStartMs ?: return
         val currentListenedMs = listenedMs + (System.currentTimeMillis() - currentListenStart)
@@ -483,6 +523,89 @@ class MusicPlayerController @Inject constructor(
             currentPosition = position,
             duration = _playbackProgress.value.duration
         )
+    }
+
+    fun markLoopStartAtCurrentPosition() {
+        val position = mediaController?.currentPosition?.coerceAtLeast(0L) ?: return
+        val current = _loopRange.value
+        _loopRange.value = current.copy(
+            isEnabled = false,
+            startMs = position,
+            endMs = current.endMs?.takeIf { it > position }
+        )
+        pauseListenClock()
+        if (mediaController?.isPlaying == true) {
+            recordListenStart()
+        }
+    }
+
+    fun markLoopEndAtCurrentPosition() {
+        val controller = mediaController ?: return
+        val current = _loopRange.value
+        val start = current.startMs ?: return
+        val currentPosition = controller.currentPosition.coerceAtLeast(0L)
+        val duration = controller.duration.coerceAtLeast(0L)
+        val upperBound = if (duration > 0L) duration else currentPosition
+        val end = currentPosition.coerceIn(start + 250L, upperBound)
+        _loopRange.value = current.copy(
+            isEnabled = false,
+            startMs = start,
+            endMs = end
+        )
+        pauseListenClock()
+        if (mediaController?.isPlaying == true) {
+            recordListenStart()
+        }
+    }
+
+    fun setLoopToLastSeconds(seconds: Int) {
+        val controller = mediaController ?: return
+        if (seconds <= 0) return
+        val duration = controller.duration.coerceAtLeast(0L)
+        val loopEnd = controller.currentPosition.coerceAtLeast(0L).coerceAtMost(duration)
+        val loopStart = (loopEnd - seconds * 1000L).coerceAtLeast(0L)
+        if (loopEnd <= loopStart) return
+
+        _loopRange.value = LoopRange(
+            isEnabled = true,
+            startMs = loopStart,
+            endMs = loopEnd
+        )
+        pauseListenClock()
+        controller.seekTo(loopStart)
+        publishPlaybackProgress(loopStart, duration)
+    }
+
+    fun enableLoopRange() {
+        val controller = mediaController ?: return
+        val current = _loopRange.value
+        if (!current.isComplete) return
+        _loopRange.value = current.copy(isEnabled = true)
+        pauseListenClock()
+
+        val start = current.startMs ?: return
+        val end = current.endMs ?: return
+        val position = controller.currentPosition.coerceAtLeast(0L)
+        if (position < start || position >= end) {
+            controller.seekTo(start)
+            publishPlaybackProgress(start, controller.duration.coerceAtLeast(0L))
+        }
+    }
+
+    fun disableLoopRange() {
+        val wasEnabled = _loopRange.value.isEnabled
+        _loopRange.value = _loopRange.value.copy(isEnabled = false)
+        if (wasEnabled && mediaController?.isPlaying == true) {
+            recordListenStart()
+        }
+    }
+
+    fun clearLoopRange() {
+        val wasEnabled = _loopRange.value.isEnabled
+        _loopRange.value = LoopRange()
+        if (wasEnabled && mediaController?.isPlaying == true) {
+            recordListenStart()
+        }
     }
 
     private fun publishPlaybackProgress(currentPosition: Long, duration: Long) {

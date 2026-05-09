@@ -3,6 +3,7 @@ package com.example.reproductor.presentation.screens.player
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 
+import com.example.reproductor.domain.model.LoopRange
 import com.example.reproductor.domain.model.PlaybackProgress
 import com.example.reproductor.domain.model.PlayerState
 import com.example.reproductor.domain.model.Playlist
@@ -29,6 +30,7 @@ class PlayerViewModel @Inject constructor(
     val shuffleModeEnabled: StateFlow<Boolean> = controller.shuffleModeEnabled
     val sleepTimerRemainingMs: StateFlow<Long?> = controller.sleepTimerRemainingMs
     val eqPreset: StateFlow<EqPreset> = controller.eqPreset
+    val loopRange: StateFlow<LoopRange> = controller.loopRange
 
     val playlists: StateFlow<List<Playlist>> = musicRepository.getAllPlaylists()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -41,11 +43,18 @@ class PlayerViewModel @Inject constructor(
     fun skipToNext() = controller.skipToNext()
     fun skipToPrevious() = controller.skipToPrevious()
     fun seekTo(position: Long) = controller.seekTo(position)
+    fun getCurrentPlaybackPosition(): Long = controller.playbackProgress.value.currentPosition
     fun toggleRepeatMode() = controller.toggleRepeatMode()
     fun toggleShuffleMode() = controller.toggleShuffleMode()
     fun startSleepTimer(minutes: Int) = controller.startSleepTimer(minutes)
     fun cancelSleepTimer() = controller.cancelSleepTimer()
     fun setEqPreset(preset: EqPreset) = controller.setEqPreset(preset)
+    fun markLoopStartAtCurrentPosition() = controller.markLoopStartAtCurrentPosition()
+    fun markLoopEndAtCurrentPosition() = controller.markLoopEndAtCurrentPosition()
+    fun enableLoopRange() = controller.enableLoopRange()
+    fun disableLoopRange() = controller.disableLoopRange()
+    fun clearLoopRange() = controller.clearLoopRange()
+    fun setLoopToLastSeconds(seconds: Int) = controller.setLoopToLastSeconds(seconds)
 
     fun toggleFavorite(songId: Long) {
         viewModelScope.launch {

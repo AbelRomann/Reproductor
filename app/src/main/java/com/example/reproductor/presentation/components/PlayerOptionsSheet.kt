@@ -19,10 +19,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -31,27 +33,38 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.reproductor.domain.model.LoopRange
 import com.example.reproductor.presentation.player.EqPreset
 
-private val SheetBg    = Color(0xFF0D1320)
-private val SectionBg  = Color(0xFF141C2E)
+private val SheetBg = Color(0xFF0D1320)
+private val SectionBg = Color(0xFF141C2E)
 private val AccentLime = Color(0xFFE8FF47)
 private val AccentBlue = Color(0xFF4FD5FF)
 private val TextMutedC = Color(0xFF6B6B85)
-private val Divider    = Color(0xFF1B2238)
+private val Divider = Color(0xFF1B2238)
+private val DangerPink = Color(0xFFFF5F7E)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerOptionsSheet(
     currentEqPreset: EqPreset,
     sleepTimerRemainingMs: Long?,
+    loopRange: LoopRange,
+    currentPosition: Long,
     onDismiss: () -> Unit,
     onSetEqPreset: (EqPreset) -> Unit,
     onStartSleepTimer: (Int) -> Unit,
-    onCancelSleepTimer: () -> Unit
+    onCancelSleepTimer: () -> Unit,
+    onMarkLoopStart: () -> Unit,
+    onMarkLoopEnd: () -> Unit,
+    onEnableLoop: () -> Unit,
+    onDisableLoop: () -> Unit,
+    onClearLoop: () -> Unit,
+    onLoopLast3Seconds: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -75,12 +88,10 @@ fun PlayerOptionsSheet(
                 .navigationBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 8.dp)
         ) {
-
-            // ── Title ────────────────────────────────────────────────────────
             Text(
                 text = "Opciones del reproductor",
                 color = Color.White,
-                style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp, top = 4.dp)
             )
@@ -88,14 +99,13 @@ fun PlayerOptionsSheet(
             HorizontalDivider(thickness = 0.5.dp, color = Divider)
             Spacer(Modifier.height(20.dp))
 
-            // ── Equalizer section ────────────────────────────────────────────
             SectionHeader(icon = Icons.Default.Equalizer, title = "Ecualizador")
             Spacer(Modifier.height(12.dp))
 
             val presets = listOf(
-                EqPreset.FLAT        to "Plano",
-                EqPreset.BASS_BOOST  to "Graves",
-                EqPreset.VOCAL       to "Vocal",
+                EqPreset.FLAT to "Plano",
+                EqPreset.BASS_BOOST to "Graves",
+                EqPreset.VOCAL to "Vocal",
                 EqPreset.TREBLE_BOOST to "Agudos"
             )
 
@@ -109,10 +119,7 @@ fun PlayerOptionsSheet(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (isSelected) AccentLime.copy(alpha = 0.15f)
-                                else SectionBg
-                            )
+                            .background(if (isSelected) AccentLime.copy(alpha = 0.15f) else SectionBg)
                             .border(
                                 width = if (isSelected) 1.5.dp else 0.dp,
                                 color = if (isSelected) AccentLime else Color.Transparent,
@@ -136,12 +143,81 @@ fun PlayerOptionsSheet(
             HorizontalDivider(thickness = 0.5.dp, color = Divider)
             Spacer(Modifier.height(20.dp))
 
-            // ── Sleep Timer section ──────────────────────────────────────────
-            SectionHeader(icon = Icons.Default.Bedtime, title = "Temporizador de sueño")
+            SectionHeader(icon = Icons.Default.Repeat, title = "Loop A-B")
+            Spacer(Modifier.height(12.dp))
+
+            Text(
+                text = buildLoopSummary(loopRange),
+                color = if (loopRange.isEnabled) AccentBlue else TextMutedC,
+                fontSize = 13.sp,
+                fontWeight = if (loopRange.isEnabled) FontWeight.SemiBold else FontWeight.Normal
+            )
+            Spacer(Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                ActionChip(
+                    label = "Inicio aqui",
+                    modifier = Modifier.weight(1f),
+                    onClick = onMarkLoopStart
+                )
+                ActionChip(
+                    label = "Fin aqui",
+                    modifier = Modifier.weight(1f),
+                    onClick = onMarkLoopEnd
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                ActionChip(
+                    label = if (loopRange.isEnabled) "Desactivar" else "Activar",
+                    modifier = Modifier.weight(1f),
+                    accent = loopRange.isEnabled,
+                    onClick = if (loopRange.isEnabled) onDisableLoop else onEnableLoop
+                )
+                ActionChip(
+                    label = "Ultimos 3 s",
+                    modifier = Modifier.weight(1f),
+                    onClick = onLoopLast3Seconds
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Posicion actual: ${formatDuration(currentPosition)}",
+                    color = TextMutedC,
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "Borrar tramo",
+                    color = DangerPink,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable(onClick = onClearLoop)
+                )
+            }
+
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider(thickness = 0.5.dp, color = Divider)
+            Spacer(Modifier.height(20.dp))
+
+            SectionHeader(icon = Icons.Default.Bedtime, title = "Temporizador de sueno")
             Spacer(Modifier.height(12.dp))
 
             if (sleepTimerRemainingMs != null) {
-                // Timer is active — show remaining time and cancel button
                 val totalSec = (sleepTimerRemainingMs / 1000).toInt()
                 val mins = totalSec / 60
                 val secs = totalSec % 60
@@ -160,15 +236,13 @@ fun PlayerOptionsSheet(
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Cancelar temporizador",
-                            tint = Color(0xFFFF5F7E),
+                            tint = DangerPink,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                 }
             } else {
-                // Timer is off — show quick-select buttons
-                val options = listOf(5 to "5 min", 10 to "10 min", 15 to "15 min",
-                                     30 to "30 min", 45 to "45 min", 60 to "60 min")
+                val options = listOf(5 to "5 min", 10 to "10 min", 15 to "15 min", 30 to "30 min", 45 to "45 min", 60 to "60 min")
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     options.chunked(3).forEach { rowItems ->
                         Row(
@@ -204,8 +278,49 @@ fun PlayerOptionsSheet(
 }
 
 @Composable
+private fun ActionChip(
+    label: String,
+    modifier: Modifier = Modifier,
+    accent: Boolean = false,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (accent) AccentBlue.copy(alpha = 0.18f) else SectionBg)
+            .border(
+                width = if (accent) 1.dp else 0.dp,
+                color = if (accent) AccentBlue else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (accent) AccentBlue else Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+private fun buildLoopSummary(loopRange: LoopRange): String {
+    return when {
+        loopRange.isEnabled && loopRange.isComplete ->
+            "Activo: ${formatDuration(loopRange.startMs ?: 0L)} - ${formatDuration(loopRange.endMs ?: 0L)}"
+        loopRange.isComplete ->
+            "Listo: ${formatDuration(loopRange.startMs ?: 0L)} - ${formatDuration(loopRange.endMs ?: 0L)}"
+        loopRange.startMs != null ->
+            "Inicio: ${formatDuration(loopRange.startMs)} - falta fin"
+        else -> "Sin tramo definido"
+    }
+}
+
+@Composable
 private fun SectionHeader(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {

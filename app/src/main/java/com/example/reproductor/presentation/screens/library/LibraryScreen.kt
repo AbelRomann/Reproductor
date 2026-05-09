@@ -67,8 +67,6 @@ fun LibraryScreen(
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
-    val visibleSongs = remember(filteredSongs) { filteredSongs.take(50) }
-
     var selectedSong by remember { mutableStateOf<Song?>(null) }
 
     PullToRefreshBox(
@@ -133,7 +131,7 @@ fun LibraryScreen(
             }
         }
 
-        itemsIndexed(visibleSongs, key = { _, s -> s.id }, contentType = { _, _ -> "SongItem" }) { index, song ->
+        itemsIndexed(filteredSongs, key = { _, s -> s.id }, contentType = { _, _ -> "SongItem" }) { index, song ->
             val albumArtRequest = rememberArtworkRequest(
                 data = song.albumArt,
                 size = 42.dp
@@ -143,7 +141,7 @@ fun LibraryScreen(
                     .fillMaxWidth()
                     .combinedClickable(
                         onClick = {
-                            viewModel.playSongs(visibleSongs, index)
+                            viewModel.playSongs(filteredSongs, index)
                             onNavigateToPlayer()
                         },
                         onLongClick = { selectedSong = song }
