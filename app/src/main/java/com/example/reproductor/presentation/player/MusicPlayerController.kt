@@ -47,6 +47,7 @@ class MusicPlayerController @Inject constructor(
     // ── Play-count threshold ──────────────────────────────────────────────────
     private val minListenMs = 30_000L
     private val minListenMsForHistory = 15_000L
+    private val minLoopDurationForCountMs = 50_000L  // bucles de sección >= 50 s pueden sumar
     private var currentListenSongId: Long? = null
     private var listenStartMs: Long? = null
     private var listenedMs: Long = 0L
@@ -54,6 +55,7 @@ class MusicPlayerController @Inject constructor(
     private var historyCounted: Boolean = false
     private var lastAutoTransitionHandledMs: Long = 0L
     private var lastKnownPosition: Long = 0L  // para detectar loops silenciosos
+    private var loopDurationMs: Long = 0L       // duración del bucle de sección activo
 
     // ── State flows ───────────────────────────────────────────────────────────
     private val _playerState = MutableStateFlow(PlayerState())
@@ -301,7 +303,8 @@ class MusicPlayerController @Inject constructor(
     // ── Listen-time tracking ──────────────────────────────────────────────────
 
     private fun recordListenStart() {
-        if (_loopRange.value.isEnabled) return
+        // Permitir tracking si el loop activo dura más del umbral mínimo
+        if (_loopRange.value.isEnabled && loopDurationMs < minLoopDurationForCountMs) return
         if (listenStartMs == null) {
             listenStartMs = System.currentTimeMillis()
         }
@@ -348,9 +351,20 @@ class MusicPlayerController @Inject constructor(
                 val loopEnd = loopRange.endMs ?: duration
                 val loopTriggerThreshold = (loopEnd - 100L).coerceAtLeast(loopStart)
                 if (currentPosition >= loopTriggerThreshold) {
+                    // El bucle completó un ciclo: si su duración supera el umbral,
+                    // confirmamos el tiempo acumulado y reseteamos para el siguiente ciclo.
+                    if (loopDurationMs >= minLoopDurationForCountMs) {
+                        commitListenTimeIfNeeded()
+                        listenedMs = 0L
+                        playCountCounted = false
+                        historyCounted = false
+                    }
                     controller.seekTo(loopStart)
                     publishPlaybackProgress(loopStart, duration)
                     lastKnownPosition = loopStart
+                    if (controller.isPlaying && loopDurationMs >= minLoopDurationForCountMs) {
+                        recordListenStart()
+                    }
                     return
                 }
             }
@@ -374,7 +388,8 @@ class MusicPlayerController @Inject constructor(
             }
             lastKnownPosition = currentPosition
         }
-        if (_loopRange.value.isEnabled) return
+        // Omitir tracking de tiempo si el loop activo es demasiado corto
+        if (_loopRange.value.isEnabled && loopDurationMs < minLoopDurationForCountMs) return
         if (playCountCounted && historyCounted) return
         val currentListenStart = listenStartMs ?: return
         val currentListenedMs = listenedMs + (System.currentTimeMillis() - currentListenStart)
@@ -566,35 +581,54 @@ class MusicPlayerController @Inject constructor(
         val loopStart = (loopEnd - seconds * 1000L).coerceAtLeast(0L)
         if (loopEnd <= loopStart) return
 
+        loopDurationMs = loopEnd - loopStart
         _loopRange.value = LoopRange(
             isEnabled = true,
             startMs = loopStart,
             endMs = loopEnd
         )
         pauseListenClock()
+        listenedMs = 0L
+        playCountCounted = false
+        historyCounted = false
         controller.seekTo(loopStart)
         publishPlaybackProgress(loopStart, duration)
+        if (controller.isPlaying && loopDurationMs >= minLoopDurationForCountMs) {
+            recordListenStart()
+        }
     }
 
     fun enableLoopRange() {
         val controller = mediaController ?: return
         val current = _loopRange.value
         if (!current.isComplete) return
-        _loopRange.value = current.copy(isEnabled = true)
-        pauseListenClock()
-
         val start = current.startMs ?: return
         val end = current.endMs ?: return
+        loopDurationMs = end - start
+        _loopRange.value = current.copy(isEnabled = true)
+        pauseListenClock()
+        listenedMs = 0L
+        playCountCounted = false
+        historyCounted = false
+
         val position = controller.currentPosition.coerceAtLeast(0L)
         if (position < start || position >= end) {
             controller.seekTo(start)
             publishPlaybackProgress(start, controller.duration.coerceAtLeast(0L))
+        }
+        if (controller.isPlaying && loopDurationMs >= minLoopDurationForCountMs) {
+            recordListenStart()
         }
     }
 
     fun disableLoopRange() {
         val wasEnabled = _loopRange.value.isEnabled
         _loopRange.value = _loopRange.value.copy(isEnabled = false)
+        loopDurationMs = 0L
+        pauseListenClock()
+        listenedMs = 0L
+        playCountCounted = false
+        historyCounted = false
         if (wasEnabled && mediaController?.isPlaying == true) {
             recordListenStart()
         }
@@ -603,6 +637,11 @@ class MusicPlayerController @Inject constructor(
     fun clearLoopRange() {
         val wasEnabled = _loopRange.value.isEnabled
         _loopRange.value = LoopRange()
+        loopDurationMs = 0L
+        pauseListenClock()
+        listenedMs = 0L
+        playCountCounted = false
+        historyCounted = false
         if (wasEnabled && mediaController?.isPlaying == true) {
             recordListenStart()
         }
