@@ -337,9 +337,10 @@ fun HomeScreen(
                     MostPlayedSection(
                         tracks = mostPlayedTracks,
                         onItemClick = { songId ->
-                            songs.find { it.id == songId }?.let { song ->
-                                onSongClick(song)
-                            }
+                            val startIndex = mostPlayedSongs.indexOfFirst { it.id == songId }
+                                .coerceAtLeast(0)
+                            viewModel.playSongs(mostPlayedSongs, startIndex)
+                            onNavigateToPlayer()
                         }
                     )
                 }
