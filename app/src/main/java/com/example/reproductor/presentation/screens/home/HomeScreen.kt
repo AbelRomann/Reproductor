@@ -354,7 +354,12 @@ fun HomeScreen(
                 HorizontalSongSection(
                     title = "Últimos agregados",
                     songs = recentlyAddedSongs,
-                    onSongClick = onSongClick,
+                    onSongClick = { song ->
+                        val startIndex = recentlyAddedSongs.indexOfFirst { it.id == song.id }
+                            .coerceAtLeast(0)
+                        viewModel.playSongs(recentlyAddedSongs, startIndex)
+                        onNavigateToPlayer()
+                    },
                     onSongLongClick = { selectedSong = it }
                 )
                 Spacer(Modifier.height(36.dp))
@@ -367,7 +372,12 @@ fun HomeScreen(
                 HorizontalSongSection(
                     title = "Reproducciones recientes",
                     songs = recentlyPlayedSongs,
-                    onSongClick = onSongClick,
+                    onSongClick = { song ->
+                        val startIndex = recentlyPlayedSongs.indexOfFirst { it.id == song.id }
+                            .coerceAtLeast(0)
+                        viewModel.playSongs(recentlyPlayedSongs, startIndex)
+                        onNavigateToPlayer()
+                    },
                     onSongLongClick = { selectedSong = it }
                 )
                 Spacer(Modifier.height(36.dp))
