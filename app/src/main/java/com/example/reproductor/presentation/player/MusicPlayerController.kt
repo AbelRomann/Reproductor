@@ -12,6 +12,7 @@ import androidx.media3.session.SessionToken
 import com.example.reproductor.domain.model.LoopRange
 import com.example.reproductor.domain.model.PlaybackProgress
 import com.example.reproductor.domain.model.PlayerState
+import com.example.reproductor.domain.model.SavedSongLoop
 import com.example.reproductor.domain.model.Song
 import com.example.reproductor.domain.repository.MusicRepository
 import com.example.reproductor.service.MusicPlayerService
@@ -644,6 +645,32 @@ class MusicPlayerController @Inject constructor(
         historyCounted = false
         if (wasEnabled && mediaController?.isPlaying == true) {
             recordListenStart()
+        }
+    }
+
+    fun applySavedLoop(loop: SavedSongLoop) {
+        val currentSongId = _playerState.value.currentSong?.id ?: return
+        if (currentSongId != loop.songId) return
+
+        val start = loop.startMs.coerceAtLeast(0L)
+        val end = loop.endMs.coerceAtLeast(start + 250L)
+        loopDurationMs = end - start
+        _loopRange.value = LoopRange(
+            isEnabled = true,
+            startMs = start,
+            endMs = end
+        )
+        pauseListenClock()
+        listenedMs = 0L
+        playCountCounted = false
+        historyCounted = false
+
+        mediaController?.let { controller ->
+            controller.seekTo(start)
+            publishPlaybackProgress(start, controller.duration.coerceAtLeast(0L))
+            if (controller.isPlaying && loopDurationMs >= minLoopDurationForCountMs) {
+                recordListenStart()
+            }
         }
     }
 

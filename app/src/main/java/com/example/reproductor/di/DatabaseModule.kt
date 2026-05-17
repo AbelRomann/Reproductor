@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.example.reproductor.data.local.database.MusicDatabase
 import com.example.reproductor.data.local.database.dao.AlbumDao
 import com.example.reproductor.data.local.database.dao.PlaylistDao
+import com.example.reproductor.data.local.database.dao.SavedSongLoopDao
 import com.example.reproductor.data.local.database.dao.SongDao
 import dagger.Module
 import dagger.Provides
@@ -29,7 +30,8 @@ object DatabaseModule {
             MusicDatabase.MIGRATION_2_3, 
             MusicDatabase.MIGRATION_3_4, 
             MusicDatabase.MIGRATION_4_5, 
-            MusicDatabase.MIGRATION_5_6
+            MusicDatabase.MIGRATION_5_6,
+            MusicDatabase.MIGRATION_6_7
         )
         .fallbackToDestructiveMigration()
         .build()
@@ -48,5 +50,10 @@ object DatabaseModule {
     @Provides
     fun providePlaylistDao(database: MusicDatabase): PlaylistDao {
         return database.playlistDao()
+    }
+
+    @Provides
+    fun provideSavedSongLoopDao(database: MusicDatabase): SavedSongLoopDao {
+        return database.savedSongLoopDao()
     }
 }

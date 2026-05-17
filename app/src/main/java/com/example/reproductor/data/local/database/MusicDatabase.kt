@@ -4,10 +4,12 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.example.reproductor.data.local.database.dao.AlbumDao
 import com.example.reproductor.data.local.database.dao.PlaylistDao
+import com.example.reproductor.data.local.database.dao.SavedSongLoopDao
 import com.example.reproductor.data.local.database.dao.SongDao
 import com.example.reproductor.data.local.entities.AlbumEntity
 import com.example.reproductor.data.local.entities.PlaylistEntity
 import com.example.reproductor.data.local.entities.PlaylistSongCrossRef
+import com.example.reproductor.data.local.entities.SavedSongLoopEntity
 import com.example.reproductor.data.local.entities.SongEntity
 import com.example.reproductor.data.local.entities.SongFtsEntity
 
@@ -17,15 +19,17 @@ import com.example.reproductor.data.local.entities.SongFtsEntity
         SongFtsEntity::class,
         AlbumEntity::class,
         PlaylistEntity::class,
-        PlaylistSongCrossRef::class
+        PlaylistSongCrossRef::class,
+        SavedSongLoopEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class MusicDatabase : RoomDatabase() {
     abstract fun songDao(): SongDao
     abstract fun albumDao(): AlbumDao
     abstract fun playlistDao(): PlaylistDao
+    abstract fun savedSongLoopDao(): SavedSongLoopDao
 
     companion object {
         val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
@@ -64,6 +68,25 @@ abstract class MusicDatabase : RoomDatabase() {
         val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
             override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE songs ADD COLUMN lastPlayed INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `saved_song_loops` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `songId` INTEGER NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `startMs` INTEGER NOT NULL,
+                        `endMs` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        FOREIGN KEY(`songId`) REFERENCES `songs`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_saved_song_loops_songId` ON `saved_song_loops` (`songId`)")
             }
         }
     }

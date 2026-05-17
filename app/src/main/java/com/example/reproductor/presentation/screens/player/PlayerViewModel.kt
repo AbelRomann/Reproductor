@@ -7,12 +7,15 @@ import com.example.reproductor.domain.model.LoopRange
 import com.example.reproductor.domain.model.PlaybackProgress
 import com.example.reproductor.domain.model.PlayerState
 import com.example.reproductor.domain.model.Playlist
+import com.example.reproductor.domain.model.SavedSongLoop
 import com.example.reproductor.domain.model.Song
 import com.example.reproductor.domain.repository.MusicRepository
 import com.example.reproductor.presentation.player.EqPreset
 import com.example.reproductor.presentation.player.MusicPlayerController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -31,6 +34,13 @@ class PlayerViewModel @Inject constructor(
     val sleepTimerRemainingMs: StateFlow<Long?> = controller.sleepTimerRemainingMs
     val eqPreset: StateFlow<EqPreset> = controller.eqPreset
     val loopRange: StateFlow<LoopRange> = controller.loopRange
+    val savedLoopsForCurrentSong: StateFlow<List<SavedSongLoop>> = controller.playerState
+        .flatMapLatest { state ->
+            val songId = state.currentSong?.id
+            if (songId == null || songId <= 0L) flowOf(emptyList())
+            else musicRepository.getSavedLoopsForSong(songId)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val playlists: StateFlow<List<Playlist>> = musicRepository.getAllPlaylists()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -55,6 +65,30 @@ class PlayerViewModel @Inject constructor(
     fun disableLoopRange() = controller.disableLoopRange()
     fun clearLoopRange() = controller.clearLoopRange()
     fun setLoopToLastSeconds(seconds: Int) = controller.setLoopToLastSeconds(seconds)
+    fun applySavedLoop(loop: SavedSongLoop) = controller.applySavedLoop(loop)
+
+    fun saveCurrentLoop(name: String) {
+        val songId = playerState.value.currentSong?.id ?: return
+        val currentLoop = loopRange.value
+        val start = currentLoop.startMs ?: return
+        val end = currentLoop.endMs ?: return
+        if (end <= start) return
+
+        viewModelScope.launch {
+            musicRepository.saveLoopForSong(
+                songId = songId,
+                name = name.trim(),
+                startMs = start,
+                endMs = end
+            )
+        }
+    }
+
+    fun deleteSavedLoop(loopId: Long) {
+        viewModelScope.launch {
+            musicRepository.deleteSavedLoop(loopId)
+        }
+    }
 
     fun toggleFavorite(songId: Long) {
         viewModelScope.launch {

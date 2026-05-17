@@ -2,6 +2,7 @@ package com.example.reproductor.domain.repository
 
 import com.example.reproductor.domain.model.Album
 import com.example.reproductor.domain.model.Playlist
+import com.example.reproductor.domain.model.SavedSongLoop
 import com.example.reproductor.domain.model.Song
 import kotlinx.coroutines.flow.Flow
 
@@ -31,4 +32,7 @@ interface MusicRepository {
     suspend fun incrementPlayCount(songId: Long)
     fun getRecentlyPlayedSongs(limit: Int = 15): Flow<List<Song>>
     suspend fun updateLastPlayed(songId: Long, timestamp: Long)
+    fun getSavedLoopsForSong(songId: Long): Flow<List<SavedSongLoop>>
+    suspend fun saveLoopForSong(songId: Long, name: String, startMs: Long, endMs: Long)
+    suspend fun deleteSavedLoop(loopId: Long)
 }

@@ -141,6 +141,7 @@ fun PlayerScreen(
     val sleepTimerRemainingMs by viewModel.sleepTimerRemainingMs.collectAsStateWithLifecycle()
     val eqPreset by viewModel.eqPreset.collectAsStateWithLifecycle()
     val loopRange by viewModel.loopRange.collectAsStateWithLifecycle()
+    val savedLoopsForCurrentSong by viewModel.savedLoopsForCurrentSong.collectAsStateWithLifecycle()
 
     // Fix #9: derivedStateOf to avoid full-tree recomposition
     val queue by remember { derivedStateOf { playerState.queue } }
@@ -462,6 +463,7 @@ fun PlayerScreen(
             currentEqPreset = eqPreset,
             sleepTimerRemainingMs = sleepTimerRemainingMs,
             loopRange = loopRange,
+            savedLoops = savedLoopsForCurrentSong,
             currentPosition = viewModel.getCurrentPlaybackPosition(),
             onDismiss = { showPlayerOptionsSheet = false },
             onSetEqPreset = { preset -> viewModel.setEqPreset(preset) },
@@ -475,7 +477,10 @@ fun PlayerScreen(
             onEnableLoop = { viewModel.enableLoopRange() },
             onDisableLoop = { viewModel.disableLoopRange() },
             onClearLoop = { viewModel.clearLoopRange() },
-            onLoopLast3Seconds = { viewModel.setLoopToLastSeconds(3) }
+            onLoopLast3Seconds = { viewModel.setLoopToLastSeconds(3) },
+            onSaveLoop = { name -> viewModel.saveCurrentLoop(name) },
+            onApplySavedLoop = { loop -> viewModel.applySavedLoop(loop) },
+            onDeleteSavedLoop = { loop -> viewModel.deleteSavedLoop(loop.id) }
         )
     }
 }

@@ -5,14 +5,17 @@ import androidx.room.withTransaction
 import com.example.reproductor.data.local.database.MusicDatabase
 import com.example.reproductor.data.local.database.dao.AlbumDao
 import com.example.reproductor.data.local.database.dao.PlaylistDao
+import com.example.reproductor.data.local.database.dao.SavedSongLoopDao
 import com.example.reproductor.data.local.database.dao.SongDao
 import com.example.reproductor.data.local.entities.AlbumEntity
 import com.example.reproductor.data.local.entities.PlaylistEntity
+import com.example.reproductor.data.local.entities.SavedSongLoopEntity
 import com.example.reproductor.data.local.entities.SongEntity
 import com.example.reproductor.data.local.entities.toDomain
 import com.example.reproductor.data.source.MediaStoreDataSource
 import com.example.reproductor.domain.model.Album
 import com.example.reproductor.domain.model.Playlist
+import com.example.reproductor.domain.model.SavedSongLoop
 import com.example.reproductor.domain.model.Song
 import com.example.reproductor.domain.repository.MusicRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -34,6 +37,7 @@ class MusicRepositoryImpl @Inject constructor(
     private val songDao: SongDao,
     private val albumDao: AlbumDao,
     private val playlistDao: PlaylistDao,
+    private val savedSongLoopDao: SavedSongLoopDao,
     private val mediaStoreDataSource: MediaStoreDataSource
 ) : MusicRepository {
 
@@ -226,6 +230,31 @@ class MusicRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun getSavedLoopsForSong(songId: Long): Flow<List<SavedSongLoop>> {
+        return savedSongLoopDao.getLoopsForSong(songId)
+            .map { entities -> entities.map { it.toDomain() } }
+            .flowOn(Dispatchers.IO)
+    }
+
+    override suspend fun saveLoopForSong(songId: Long, name: String, startMs: Long, endMs: Long) {
+        withContext(Dispatchers.IO) {
+            savedSongLoopDao.insertLoop(
+                SavedSongLoopEntity(
+                    songId = songId,
+                    name = name,
+                    startMs = startMs,
+                    endMs = endMs
+                )
+            )
+        }
+    }
+
+    override suspend fun deleteSavedLoop(loopId: Long) {
+        withContext(Dispatchers.IO) {
+            savedSongLoopDao.deleteLoop(loopId)
+        }
+    }
+
     private suspend fun syncSongsIncrementally(newSongs: List<SongEntity>) {
         val currentSongs = songDao.getSongsSnapshot()
         val currentSongsById = currentSongs.associateBy { it.id }
@@ -252,6 +281,7 @@ class MusicRepositoryImpl @Inject constructor(
         }
 
         if (removedSongIds.isNotEmpty()) {
+            savedSongLoopDao.deleteLoopsBySongIds(removedSongIds.toList())
             songDao.deleteSongsByIds(removedSongIds.toList())
         }
 
