@@ -22,7 +22,7 @@ import com.example.reproductor.data.local.entities.SongFtsEntity
         PlaylistSongCrossRef::class,
         SavedSongLoopEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class MusicDatabase : RoomDatabase() {
@@ -87,6 +87,12 @@ abstract class MusicDatabase : RoomDatabase() {
                     """.trimIndent()
                 )
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_saved_song_loops_songId` ON `saved_song_loops` (`songId`)")
+            }
+        }
+
+        val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE songs ADD COLUMN customAlbumArt TEXT")
             }
         }
     }

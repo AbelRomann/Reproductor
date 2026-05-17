@@ -31,7 +31,8 @@ object DatabaseModule {
             MusicDatabase.MIGRATION_3_4, 
             MusicDatabase.MIGRATION_4_5, 
             MusicDatabase.MIGRATION_5_6,
-            MusicDatabase.MIGRATION_6_7
+            MusicDatabase.MIGRATION_6_7,
+            MusicDatabase.MIGRATION_7_8
         )
         .fallbackToDestructiveMigration()
         .build()

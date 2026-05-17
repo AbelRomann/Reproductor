@@ -1,5 +1,9 @@
 package com.example.reproductor.presentation.screens.library
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,6 +48,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -62,12 +67,28 @@ fun LibraryScreen(
     onNavigateToSearch: () -> Unit,
     viewModel: LibraryViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val filteredSongs by viewModel.filteredSongs.collectAsStateWithLifecycle()
     val selectedFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     var selectedSong by remember { mutableStateOf<Song?>(null) }
+    val coverPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        val song = selectedSong ?: return@rememberLauncherForActivityResult
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            viewModel.updateCustomAlbumArt(song.id, uri.toString())
+        }
+        selectedSong = null
+    }
 
     PullToRefreshBox(
         isRefreshing = isLoading,
@@ -224,7 +245,16 @@ fun LibraryScreen(
             onToggleFavorite = {
                 viewModel.toggleFavorite(song.id)
                 selectedSong = null
-            }
+            },
+            onReplaceCover = {
+                coverPickerLauncher.launch(arrayOf("image/*"))
+            },
+            onRemoveCustomCover = if (song.hasCustomAlbumArt) {
+                {
+                    viewModel.updateCustomAlbumArt(song.id, null)
+                    selectedSong = null
+                }
+            } else null
             // onRemoveFromPlaylist is null here (not a playlist context)
         )
     }

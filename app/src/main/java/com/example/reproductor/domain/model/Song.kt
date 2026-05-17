@@ -13,6 +13,7 @@ data class Song(
     val albumId: Long,
     val artistId: Long,
     val albumArt: String?,
+    val hasCustomAlbumArt: Boolean = false,
     val isFavorite: Boolean = false,
     val playCount: Int = 0,
     val lastPlayed: Long = 0L

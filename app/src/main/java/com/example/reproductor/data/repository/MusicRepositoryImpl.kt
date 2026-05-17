@@ -230,6 +230,12 @@ class MusicRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun updateCustomAlbumArt(songId: Long, albumArtUri: String?) {
+        withContext(Dispatchers.IO) {
+            songDao.updateCustomAlbumArt(songId, albumArtUri)
+        }
+    }
+
     override fun getSavedLoopsForSong(songId: Long): Flow<List<SavedSongLoop>> {
         return savedSongLoopDao.getLoopsForSong(songId)
             .map { entities -> entities.map { it.toDomain() } }
@@ -270,7 +276,8 @@ class MusicRepositoryImpl @Inject constructor(
                 newSong.copy(
                     playCount = existingSong.playCount,
                     isFavorite = existingSong.isFavorite,
-                    lastPlayed = existingSong.lastPlayed
+                    lastPlayed = existingSong.lastPlayed,
+                    customAlbumArt = existingSong.customAlbumArt
                 )
             } else {
                 newSong

@@ -32,6 +32,7 @@ interface MusicRepository {
     suspend fun incrementPlayCount(songId: Long)
     fun getRecentlyPlayedSongs(limit: Int = 15): Flow<List<Song>>
     suspend fun updateLastPlayed(songId: Long, timestamp: Long)
+    suspend fun updateCustomAlbumArt(songId: Long, albumArtUri: String?)
     fun getSavedLoopsForSong(songId: Long): Flow<List<SavedSongLoop>>
     suspend fun saveLoopForSong(songId: Long, name: String, startMs: Long, endMs: Long)
     suspend fun deleteSavedLoop(loopId: Long)

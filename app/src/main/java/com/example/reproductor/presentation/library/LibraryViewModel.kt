@@ -117,6 +117,12 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    fun updateCustomAlbumArt(songId: Long, albumArtUri: String?) {
+        viewModelScope.launch {
+            musicRepository.updateCustomAlbumArt(songId, albumArtUri)
+        }
+    }
+
     fun getSongsForPlaylist(playlistId: Long) = musicRepository.getSongsInPlaylist(playlistId)
 
     fun getSongsByArtistName(artistName: String) = musicRepository.getSongsByArtistName(artistName)

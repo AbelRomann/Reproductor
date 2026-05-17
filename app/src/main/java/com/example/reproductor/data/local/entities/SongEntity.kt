@@ -23,6 +23,7 @@ data class SongEntity(
     val albumId: Long,
     val artistId: Long,
     val albumArt: String?,
+    val customAlbumArt: String? = null,
     val dateAdded: Long = System.currentTimeMillis(),
     val isFavorite: Boolean = false,
     val playCount: Int = 0,
@@ -49,7 +50,8 @@ fun SongEntity.toDomain() = Song(
     path = path,
     albumId = albumId,
     artistId = artistId,
-    albumArt = albumArt,
+    albumArt = customAlbumArt ?: albumArt,
+    hasCustomAlbumArt = !customAlbumArt.isNullOrBlank(),
     isFavorite = isFavorite,
     playCount = playCount,
     lastPlayed = lastPlayed

@@ -61,4 +61,7 @@ interface SongDao {
 
     @Query("UPDATE songs SET lastPlayed = :timestamp WHERE id = :songId")
     suspend fun updateLastPlayed(songId: Long, timestamp: Long)
+
+    @Query("UPDATE songs SET customAlbumArt = :albumArtUri WHERE id = :songId")
+    suspend fun updateCustomAlbumArt(songId: Long, albumArtUri: String?)
 }

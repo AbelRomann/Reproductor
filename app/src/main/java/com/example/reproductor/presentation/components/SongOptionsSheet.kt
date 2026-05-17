@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.QueueMusic
@@ -50,22 +51,6 @@ import com.example.reproductor.domain.model.Playlist
 import com.example.reproductor.domain.model.Song
 import com.example.reproductor.ui.theme.TextMuted
 
-// ── Shared Song Options Bottom Sheet ──────────────────────────────────────────
-//
-// Used in HomeScreen (recents), LibraryScreen (all songs), and PlaylistDetailScreen.
-//
-// Parameters:
-//   song              – the song being acted on
-//   playlists         – all playlists; used for "add to playlist" sub-panel
-//   coverGradient     – gradient colors for the song cover thumbnail
-//   onDismiss         – called when the sheet should close
-//   onPlayNext        – insert song right after current queue position
-//   onAddToQueue      – append song at end of queue
-//   onAddToPlaylist   – add song to the given playlist by id
-//   onRemoveFromPlaylist – non-null only when in a playlist context; shows
-//                          the destructive "remove" action
-// ─────────────────────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SongOptionsSheet(
@@ -77,7 +62,9 @@ fun SongOptionsSheet(
     onAddToQueue: () -> Unit,
     onAddToPlaylist: (Long) -> Unit,
     onToggleFavorite: () -> Unit,
-    onRemoveFromPlaylist: (() -> Unit)? = null  // null = not in a playlist context
+    onReplaceCover: (() -> Unit)? = null,
+    onRemoveCustomCover: (() -> Unit)? = null,
+    onRemoveFromPlaylist: (() -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showPlaylistPicker by remember { mutableStateOf(false) }
@@ -102,7 +89,6 @@ fun SongOptionsSheet(
                 .navigationBarsPadding()
                 .padding(bottom = 16.dp)
         ) {
-            // ── Song info header ─────────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -160,38 +146,53 @@ fun SongOptionsSheet(
             HorizontalDivider(thickness = 0.5.dp, color = Color(0xFF1B2238))
             Spacer(Modifier.height(8.dp))
 
-            // ── Actions ──────────────────────────────────────────────────────
             if (!showPlaylistPicker) {
                 SongOptionItem(
                     icon = Icons.Default.SkipNext,
                     iconTint = Color(0xFF7B61FF),
                     iconBg = Color(0xFF7B61FF).copy(alpha = 0.14f),
-                    label = "Reproducir a continuación",
+                    label = "Reproducir a continuacion",
                     onClick = onPlayNext
                 )
                 SongOptionItem(
                     icon = Icons.Default.QueueMusic,
                     iconTint = Color(0xFF4FD5FF),
                     iconBg = Color(0xFF4FD5FF).copy(alpha = 0.14f),
-                    label = "Añadir a la cola",
+                    label = "Anadir a la cola",
                     onClick = onAddToQueue
                 )
                 SongOptionItem(
                     icon = Icons.Default.LibraryAdd,
                     iconTint = Color(0xFF00C896),
                     iconBg = Color(0xFF00C896).copy(alpha = 0.14f),
-                    label = "Añadir a playlist",
+                    label = "Anadir a playlist",
                     onClick = { showPlaylistPicker = true }
                 )
                 SongOptionItem(
                     icon = if (song.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     iconTint = if (song.isFavorite) Color(0xFFFF5F7E) else Color(0xFF6B6B85),
                     iconBg = (if (song.isFavorite) Color(0xFFFF5F7E) else Color(0xFF6B6B85)).copy(alpha = 0.14f),
-                    label = if (song.isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
+                    label = if (song.isFavorite) "Quitar de favoritos" else "Anadir a favoritos",
                     onClick = onToggleFavorite
                 )
-
-                // Destructive action — only when inside a playlist
+                if (onReplaceCover != null) {
+                    SongOptionItem(
+                        icon = Icons.Default.Image,
+                        iconTint = Color(0xFFE8FF47),
+                        iconBg = Color(0xFFE8FF47).copy(alpha = 0.14f),
+                        label = if (song.hasCustomAlbumArt) "Reemplazar portada personalizada" else "Elegir portada personalizada",
+                        onClick = onReplaceCover
+                    )
+                }
+                if (onRemoveCustomCover != null && song.hasCustomAlbumArt) {
+                    SongOptionItem(
+                        icon = Icons.Default.Delete,
+                        iconTint = Color(0xFFFF9A3C),
+                        iconBg = Color(0xFFFF9A3C).copy(alpha = 0.14f),
+                        label = "Quitar portada personalizada",
+                        onClick = onRemoveCustomCover
+                    )
+                }
                 if (onRemoveFromPlaylist != null) {
                     Spacer(Modifier.height(8.dp))
                     HorizontalDivider(
@@ -210,7 +211,6 @@ fun SongOptionsSheet(
                     )
                 }
             } else {
-                // ── Playlist picker sub-panel ─────────────────────────────────
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -290,8 +290,6 @@ fun SongOptionsSheet(
         }
     }
 }
-
-// ── Reusable option row ────────────────────────────────────────────────────────
 
 @Composable
 fun SongOptionItem(
